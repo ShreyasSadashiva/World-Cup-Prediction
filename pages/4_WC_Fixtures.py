@@ -2,10 +2,11 @@ import pandas as pd
 import streamlit as st
 
 from src.db.client import get_client
-from src.ui.styles import apply_styles, match_card
+from src.ui.styles import apply_styles, top_nav, match_card
 
 st.set_page_config(page_title="WC Fixtures · WC 2026", page_icon="🗓️", layout="wide")
 apply_styles()
+top_nav()
 
 
 @st.cache_data(ttl=60)

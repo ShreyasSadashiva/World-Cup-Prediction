@@ -4,10 +4,11 @@ import streamlit as st
 
 from src.db.client import get_client
 from src.ml.features import match_result_label
-from src.ui.styles import apply_styles, flag, form_strip, stat_grid
+from src.ui.styles import apply_styles, top_nav, flag, form_strip, stat_grid
 
 st.set_page_config(page_title="Team Form · WC 2026", page_icon="📈", layout="wide")
 apply_styles()
+top_nav()
 
 
 @st.cache_data(ttl=300)

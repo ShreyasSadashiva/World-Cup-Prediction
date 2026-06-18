@@ -5,10 +5,11 @@ import streamlit as st
 
 from src.db.client import get_client
 from src.ml.features import match_result_label
-from src.ui.styles import apply_styles, flag
+from src.ui.styles import apply_styles, top_nav, flag
 
 st.set_page_config(page_title="Head to Head · WC 2026", page_icon="🤝", layout="wide")
 apply_styles()
+top_nav()
 
 
 @st.cache_data(ttl=300)

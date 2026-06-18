@@ -4,10 +4,11 @@ import streamlit as st
 from src.db.client import get_client
 from src.ml.features import build_match_features, match_result_label
 from src.ml.model import is_trained, predict
-from src.ui.styles import apply_styles, flag, form_strip, prob_bars, stat_grid, vs_banner
+from src.ui.styles import apply_styles, top_nav, flag, form_strip, prob_bars, stat_grid, vs_banner
 
 st.set_page_config(page_title="Match Predictor · WC 2026", page_icon="🎯", layout="wide")
 apply_styles()
+top_nav()
 
 
 @st.cache_data(ttl=300)

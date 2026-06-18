@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(wc/bin/python -c ' *)",
-      "Bash(wc/bin/python -m py_compile pages/6_Tournament_Simulator.py)"
+      "Bash(wc/bin/python -m py_compile pages/6_Tournament_Simulator.py)",
+      "Bash(wc/bin/python -c \"import streamlit; print\\(streamlit.__version__\\)\")",
+      "Bash(wc/bin/python -m py_compile src/ui/styles.py app.py pages/1_Match_Predictor.py pages/2_Head_to_Head.py pages/3_Team_Form.py pages/4_WC_Fixtures.py pages/5_Players.py pages/6_Tournament_Simulator.py)"
     ]
   }
 }

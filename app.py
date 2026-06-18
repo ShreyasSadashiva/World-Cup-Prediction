@@ -3,7 +3,7 @@ import streamlit as st
 
 from src.db.client import get_client
 from src.ml.model import is_trained
-from src.ui.styles import apply_styles, flag, match_card, standings_table
+from src.ui.styles import apply_styles, top_nav, flag, match_card, standings_table
 
 st.set_page_config(
     page_title="WC 2026 Predictor",
@@ -12,6 +12,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 apply_styles()
+top_nav()
 
 
 @st.cache_data(ttl=300)
@@ -150,7 +151,7 @@ with col_right:
                     rows = []
                     for i, r in grp.iterrows():
                         rows.append({
-                            "name": r["Team"], "P": int(r["P"]), "W": int(r["W"]),
+                            "name": r["name"], "P": int(r["P"]), "W": int(r["W"]),
                             "D": int(r["D"]), "L": int(r["L"]), "GF": int(r["GF"]),
                             "GA": int(r["GA"]), "GD": int(r["GD"]), "Pts": int(r["Pts"]),
                         })

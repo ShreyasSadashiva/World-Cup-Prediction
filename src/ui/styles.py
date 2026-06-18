@@ -3,6 +3,8 @@ Shared UI design system — CSS injection + HTML component helpers.
 Import apply_styles() at the top of every Streamlit page.
 """
 
+from typing import Optional
+
 import streamlit as st
 
 # ── Country flag emoji map ─────────────────────────────────────────────────
@@ -42,7 +44,49 @@ _CSS = """
 }
 #MainMenu,footer{visibility:hidden}
 header[data-testid="stHeader"]{background:transparent !important;border:none !important}
-.main .block-container{padding:1.5rem 2rem 4rem;max-width:1380px}
+.main .block-container{padding:0.5rem 2rem 4rem;max-width:1380px}
+
+/* ── HIDE SIDEBAR AUTO-NAV ───────────────────────────────────────── */
+[data-testid="stSidebarNav"]{display:none !important}
+
+/* ── TOP NAV ──────────────────────────────────────────────────────── */
+.wc-topnav{
+    background:linear-gradient(90deg,#060614,#0a0820);
+    border-bottom:1px solid #1a1a3a;
+    padding:0 24px;
+    display:flex;align-items:center;
+    gap:4px;margin-bottom:24px;
+    border-radius:0 0 12px 12px;
+}
+.wc-topnav .nav-brand{
+    font-size:1rem;font-weight:900;
+    background:linear-gradient(135deg,#38bdf8,#818cf8);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+    background-clip:text;
+    padding:14px 16px 14px 0;
+    margin-right:8px;white-space:nowrap;
+    border-right:1px solid #1a1a3a;
+}
+/* Style st.page_link elements inside the nav */
+.wc-topnav a[data-testid="stPageLink-NavLink"],
+.wc-topnav a[data-testid="stPageLink-NavLink"]:visited{
+    color:#64748b !important;font-size:.78rem !important;
+    font-weight:600 !important;text-decoration:none !important;
+    padding:8px 14px !important;border-radius:8px !important;
+    transition:all .2s !important;white-space:nowrap !important;
+    display:flex !important;align-items:center !important;gap:5px !important;
+}
+.wc-topnav a[data-testid="stPageLink-NavLink"]:hover{
+    color:#e2e8f0 !important;background:rgba(56,189,248,.08) !important;
+}
+.wc-topnav a[data-testid="stPageLink-NavLink"][aria-current="page"]{
+    color:#38bdf8 !important;background:rgba(56,189,248,.1) !important;
+    border-bottom:2px solid #38bdf8 !important;border-radius:8px 8px 0 0 !important;
+}
+/* Columns inside nav: remove gap/padding */
+.wc-topnav [data-testid="stHorizontalBlock"]{gap:0 !important;align-items:center !important}
+.wc-topnav [data-testid="stColumn"]{padding:0 !important;min-width:0 !important}
+.wc-topnav [data-testid="stColumn"] [data-testid="stPageLink"]{margin:0 !important}
 
 /* ── SIDEBAR ─────────────────────────────────────────────────────── */
 [data-testid="stSidebar"]{
@@ -323,11 +367,34 @@ def apply_styles() -> None:
     st.markdown(_CSS, unsafe_allow_html=True)
 
 
+_NAV_PAGES = [
+    ("⚽", "Dashboard",   "app.py"),
+    ("🎯", "Predictor",   "pages/1_Match_Predictor.py"),
+    ("🤝", "H2H",         "pages/2_Head_to_Head.py"),
+    ("📈", "Team Form",   "pages/3_Team_Form.py"),
+    ("🗓️", "Fixtures",    "pages/4_WC_Fixtures.py"),
+    ("👤", "Players",     "pages/5_Players.py"),
+    ("🏆", "Simulator",   "pages/6_Tournament_Simulator.py"),
+]
+
+
+def top_nav() -> None:
+    """Render a horizontal top navigation bar using st.page_link."""
+    brand = '<div class="nav-brand">⚽ WC 2026</div>'
+    # Wrap everything in the wc-topnav div
+    st.markdown(f'<div class="wc-topnav">{brand}', unsafe_allow_html=True)
+    cols = st.columns(len(_NAV_PAGES))
+    for col, (icon, label, path) in zip(cols, _NAV_PAGES):
+        with col:
+            st.page_link(path, label=f"{icon} {label}", use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
 # ── HTML component helpers ─────────────────────────────────────────────────
 
 def match_card(
     home: str, away: str,
-    home_goals: int | None = None, away_goals: int | None = None,
+    home_goals: Optional[int] = None, away_goals: Optional[int] = None,
     date: str = "", group: str = "", stage: str = "", venue: str = "",
     status: str = "SCHEDULED",
 ) -> str:

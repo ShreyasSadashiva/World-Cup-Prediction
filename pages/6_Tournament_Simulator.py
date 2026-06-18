@@ -19,7 +19,7 @@ import streamlit as st
 from src.db.client import get_client
 from src.ml.features import FEATURE_COLS
 from src.ml.model import is_trained, load as load_model
-from src.ui.styles import apply_styles, bracket_card, champion_banner, flag, standings_table
+from src.ui.styles import apply_styles, top_nav, bracket_card, champion_banner, flag, standings_table
 
 # ── constants ─────────────────────────────────────────────────────────────────
 _ROUNDS = ["Round of 32", "Round of 16", "Quarter-final", "Semi-final", "Final"]
@@ -433,6 +433,7 @@ def run_monte_carlo(data: dict, all_feats: dict, n: int) -> dict:
 
 st.set_page_config(page_title="Tournament Simulator · WC 2026", page_icon="🏆", layout="wide")
 apply_styles()
+top_nav()
 
 st.markdown("""
 <h1>🏆 Tournament Simulator</h1>
