@@ -1,0 +1,36 @@
+-- NOTE: This app now uses Firebase Firestore (NoSQL document store).
+-- There is no SQL schema to run. This file documents the Firestore
+-- collection structure for reference.
+--
+-- ┌─────────────────────────────────────────────────────────────────┐
+-- │  Collection: teams                                              │
+-- │  Document ID: slugified team name  (e.g. "brazil", "usa")      │
+-- │  Fields: name, country_code, api_id, group_name                │
+-- ├─────────────────────────────────────────────────────────────────┤
+-- │  Collection: team_recent_matches                                │
+-- │  Document ID: "{home_slug}_{away_slug}_{YYYY-MM-DD}"           │
+-- │  Fields: home_team_id, home_team_name,                         │
+-- │          away_team_id, away_team_name,                         │
+-- │          match_date, competition, home_goals,                   │
+-- │          away_goals, neutral                                    │
+-- ├─────────────────────────────────────────────────────────────────┤
+-- │  Collection: wc_fixtures                                        │
+-- │  Document ID: str(api_match_id)                                 │
+-- │  Fields: home_team_id, home_team_name,                         │
+-- │          away_team_id, away_team_name,                         │
+-- │          match_date, stage, group_name,                        │
+-- │          home_goals, away_goals, status, venue, api_match_id   │
+-- ├─────────────────────────────────────────────────────────────────┤
+-- │  Collection: players                                            │
+-- │  Document ID: str(api_player_id)                               │
+-- │  Fields: team_id (slug), team_name, name, position,            │
+-- │          date_of_birth, nationality                             │
+-- ├─────────────────────────────────────────────────────────────────┤
+-- │  Collection: wc_player_stats                                    │
+-- │  Document ID: player_doc_id (same as players)                  │
+-- │  Fields: player_id, player_name, team_id, team_name,           │
+-- │          goals, assists, yellow_cards, red_cards, minutes_played│
+-- └─────────────────────────────────────────────────────────────────┘
+--
+-- Setup: No SQL to run. Just create a Firebase project, enable Firestore,
+-- download a service account key, and point FIREBASE_CREDENTIALS_PATH at it.
