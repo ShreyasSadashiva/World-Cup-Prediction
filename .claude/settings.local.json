@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc/bin/python -c ' *)",
+      "Bash(wc/bin/python -m py_compile pages/6_Tournament_Simulator.py)"
+    ]
+  }
+}

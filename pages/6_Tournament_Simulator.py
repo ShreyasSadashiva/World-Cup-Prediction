@@ -19,6 +19,7 @@ import streamlit as st
 from src.db.client import get_client
 from src.ml.features import FEATURE_COLS
 from src.ml.model import is_trained, load as load_model
+from src.ui.styles import apply_styles, bracket_card, champion_banner, flag, standings_table
 
 # ── constants ─────────────────────────────────────────────────────────────────
 _ROUNDS = ["Round of 32", "Round of 16", "Quarter-final", "Semi-final", "Final"]
@@ -431,15 +432,19 @@ def run_monte_carlo(data: dict, all_feats: dict, n: int) -> dict:
 # ══════════════════════════════════════════════════════════════════════════════
 
 st.set_page_config(page_title="Tournament Simulator · WC 2026", page_icon="🏆", layout="wide")
-st.title("🏆 Tournament Simulator")
-st.caption("Simulates the remaining WC 2026 matches using current results + ML model predictions.")
+apply_styles()
+
+st.markdown("""
+<h1>🏆 Tournament Simulator</h1>
+<p class="page-sub">Simulates the rest of WC 2026 using current results + ML model · Single run or Monte Carlo</p>
+""", unsafe_allow_html=True)
 
 if not is_trained():
     st.warning("Model not trained — run `python -m scripts.train_model` first.", icon="⚠️")
 
-# ── sidebar controls ──────────────────────────────────────────────────────────
+# ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.subheader("⚙️ Simulation Settings")
+    st.markdown("### ⚙️ Simulation Settings")
     sim_mode = st.radio("Mode", ["Single Run", "Monte Carlo"], index=0)
     n_sims = 500
     if sim_mode == "Monte Carlo":
@@ -447,13 +452,12 @@ with st.sidebar:
     run_btn = st.button("▶ Run Simulation", type="primary", use_container_width=True)
     st.caption(
         "**Single Run** — always picks the most likely outcome.\n\n"
-        "**Monte Carlo** — samples from probability distributions and shows "
-        "each team's chance of winning the tournament."
+        "**Monte Carlo** — samples probabilities N times and shows each team's win %."
     )
 
 data = load_sim_data()
 if not data["teams"]:
-    st.error("No data in DB — run `python -m scripts.seed_db` first.")
+    st.error("No data — run `python -m scripts.seed_db` first.")
     st.stop()
 
 if "sim_result" not in st.session_state:
@@ -464,7 +468,6 @@ if "mc_result" not in st.session_state:
 if run_btn:
     with st.spinner("Building team features…"):
         all_feats = build_all_features(data)
-
     if sim_mode == "Single Run":
         with st.spinner("Simulating tournament…"):
             st.session_state.sim_result = run_tournament(data, all_feats, mode="deterministic")
@@ -476,160 +479,174 @@ if run_btn:
 result = st.session_state.sim_result
 
 if result is None:
-    st.info("Configure settings in the sidebar and click **▶ Run Simulation** to start.")
+    st.markdown("""
+<div style="background:linear-gradient(135deg,#0f0f24,#141432);border:1px solid #1e1e3e;
+            border-radius:16px;padding:48px;text-align:center;margin-top:32px">
+  <div style="font-size:3rem;margin-bottom:12px">🏆</div>
+  <div style="font-size:1.1rem;font-weight:700;color:#cbd5e1;margin-bottom:8px">
+    Ready to simulate
+  </div>
+  <div style="font-size:.85rem;color:#475569">
+    Choose a mode in the sidebar and click <strong style="color:#38bdf8">▶ Run Simulation</strong>
+  </div>
+</div>""", unsafe_allow_html=True)
     st.stop()
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  CHAMPION BANNER
-# ══════════════════════════════════════════════════════════════════════════════
-st.markdown(
-    f"""
-    <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);
-                border:2px solid #f4c430;border-radius:12px;
-                padding:24px;text-align:center;margin-bottom:24px">
-        <div style="font-size:2.8em">🥇</div>
-        <div style="color:#f4c430;font-size:2em;font-weight:bold;margin:8px 0">
-            {result['champion_name']}
-        </div>
-        <div style="color:#aaa;font-size:1em">Predicted WC 2026 Champion</div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+# ── Champion banner ───────────────────────────────────────────────────────────
+st.markdown(champion_banner(result["champion_name"]), unsafe_allow_html=True)
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  MONTE CARLO WIN PROBABILITIES
-# ══════════════════════════════════════════════════════════════════════════════
+# ── Monte Carlo probabilities ─────────────────────────────────────────────────
 mc = st.session_state.mc_result
 if mc:
-    st.subheader("📊 Tournament Win Probabilities")
-    st.caption(f"Based on {mc['n']} simulated tournaments")
+    st.markdown('<div class="section-label">Tournament Win Probabilities</div>', unsafe_allow_html=True)
+    st.caption(f"Based on {mc['n']:,} simulated tournaments")
 
     prob_rows = []
     for tid, w in sorted(mc["wins"].items(), key=lambda x: -x[1]):
         name = data["teams"].get(tid, {}).get("name", tid)
         prob_rows.append({
-            "Team":          name,
-            "Win %":         w / mc["n"],
-            "Final %":       mc["finals"].get(tid, 0) / mc["n"],
-            "Semi-final %":  mc["semis"].get(tid, 0) / mc["n"],
-            "Quarter-final %": mc["quarters"].get(tid, 0) / mc["n"],
+            "Team":     name,
+            "Win %":    w / mc["n"],
+            "Final %":  mc["finals"].get(tid, 0) / mc["n"],
+            "Semi %":   mc["semis"].get(tid, 0) / mc["n"],
+            "QF %":     mc["quarters"].get(tid, 0) / mc["n"],
         })
 
     prob_df = pd.DataFrame(prob_rows).head(20)
+    max_win = max(prob_df["Win %"]) if not prob_df.empty else 0.01
 
+    # Horizontal bar chart with flags
+    y_labels = [f"{flag(r['Team'])} {r['Team']}" for _, r in prob_df.iterrows()]
     fig = go.Figure(go.Bar(
         x=prob_df["Win %"] * 100,
-        y=prob_df["Team"],
+        y=y_labels,
         orientation="h",
         marker=dict(
             color=prob_df["Win %"] * 100,
-            colorscale="YlOrRd",
+            colorscale=[[0,"#1e3a5f"],[0.5,"#0ea5e9"],[1,"#f59e0b"]],
             showscale=False,
         ),
-        text=[f"{v:.1%}" for v in prob_df["Win %"]],
+        text=[f"  {v:.1%}" for v in prob_df["Win %"]],
         textposition="outside",
+        textfont=dict(color="#cbd5e1", size=11),
     ))
     fig.update_layout(
-        title="Top 20 teams by tournament win probability",
-        xaxis=dict(title="Win probability (%)", range=[0, max(prob_df["Win %"]) * 130]),
-        height=520,
+        xaxis=dict(range=[0, max_win * 135], showgrid=False, showticklabels=False, zeroline=False),
+        yaxis=dict(autorange="reversed", tickfont=dict(size=11, color="#cbd5e1")),
+        height=max(400, len(prob_df) * 28),
         template="plotly_dark",
-        margin=dict(l=10, r=80, t=40, b=20),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=10, r=80, t=10, b=10),
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # Detailed probability table
     with st.expander("Full probability table"):
-        display_df = prob_df.copy()
-        for col in ["Win %", "Final %", "Semi-final %", "Quarter-final %"]:
-            display_df[col] = display_df[col].apply(lambda v: f"{v:.1%}")
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
+        disp = prob_df.copy()
+        for c in ["Win %", "Final %", "Semi %", "QF %"]:
+            disp[c] = disp[c].apply(lambda v: f"{v:.1%}")
+        st.dataframe(disp, use_container_width=True, hide_index=True)
 
     st.divider()
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  KNOCKOUT BRACKET
-# ══════════════════════════════════════════════════════════════════════════════
-st.subheader("🗂️ Knockout Bracket")
+# ── Knockout bracket ──────────────────────────────────────────────────────────
+st.markdown('<div class="section-label">Knockout Bracket</div>', unsafe_allow_html=True)
 
 bracket = result["bracket"]
 if bracket:
     cols = st.columns(len(bracket))
     for col, rnd in zip(cols, bracket):
         with col:
-            st.markdown(f"**{rnd['round']}**")
+            st.markdown(
+                f'<div style="font-size:.68rem;font-weight:700;color:#38bdf8;text-transform:uppercase;'
+                f'letter-spacing:.1em;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #1e1e3e">'
+                f'{rnd["round"]}</div>',
+                unsafe_allow_html=True,
+            )
             for m in rnd["matches"]:
-                home_won = m["winner_id"] == m["home_id"]
-                h_style = "**" if home_won else ""
-                a_style = "**" if not home_won else ""
-                score = f"{m['hg']}–{m['ag']}"
                 st.markdown(
-                    f"<div style='background:#1e1e2e;border-radius:6px;"
-                    f"padding:8px 10px;margin:4px 0;font-size:0.85em'>"
-                    f"{'🏆 ' if home_won else ''}{h_style}{m['home_name']}{h_style}<br>"
-                    f"<span style='color:#888;font-size:0.8em'>{score}</span><br>"
-                    f"{'🏆 ' if not home_won else ''}{a_style}{m['away_name']}{a_style}"
-                    f"</div>",
+                    bracket_card(m["home_name"], m["away_name"], m["hg"], m["ag"],
+                                 m["winner_id"], m["home_id"]),
                     unsafe_allow_html=True,
                 )
 
 st.divider()
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  QUALIFIERS TABLE
-# ══════════════════════════════════════════════════════════════════════════════
-st.subheader("🎫 32 Teams that Qualify")
+# ── Qualifiers ────────────────────────────────────────────────────────────────
+st.markdown('<div class="section-label">32 Teams that Qualify</div>', unsafe_allow_html=True)
 
-qual_df = pd.DataFrame([
-    {"Seed": q["seed"], "Team": q["team_name"], "Qualified as": q["qualified_as"]}
-    for q in result["qualifiers"]
-])
-c1, c2, c3 = st.columns(3)
-third = len(qual_df) // 3
-for col, chunk in zip([c1, c2, c3], [qual_df.iloc[:third], qual_df.iloc[third:2*third], qual_df.iloc[2*third:]]):
-    with col:
-        st.dataframe(chunk.reset_index(drop=True), use_container_width=True, hide_index=True)
+qual_rows = ""
+for q in result["qualifiers"]:
+    pos_color = "#22c55e" if q["position"] < 2 else "#f59e0b"
+    f_ = flag(q["team_name"])
+    qual_rows += f"""
+<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;
+            border-bottom:1px solid #0f0f22">
+  <span style="font-size:.72rem;font-weight:800;color:#334155;min-width:24px">{q['seed']}</span>
+  <span style="font-size:1rem">{f_}</span>
+  <span style="font-size:.88rem;font-weight:700;color:#e2e8f0;flex:1">{q['team_name']}</span>
+  <span style="font-size:.65rem;color:{pos_color};background:{pos_color}22;
+               padding:2px 8px;border-radius:10px;border:1px solid {pos_color}44">
+    {q['qualified_as'].split('—')[1].strip() if '—' in q['qualified_as'] else q['qualified_as']}
+  </span>
+</div>"""
+
+c1, c2 = st.columns(2)
+items = result["qualifiers"]
+mid = len(items) // 2
+with c1:
+    st.markdown(f'<div style="background:#0f0f24;border:1px solid #1e1e3e;border-radius:14px;overflow:hidden">'
+                + "".join(
+                    f'<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #0f0f22">'
+                    f'<span style="font-size:.72rem;font-weight:800;color:#334155;min-width:24px">{q["seed"]}</span>'
+                    f'<span>{flag(q["team_name"])}</span>'
+                    f'<span style="font-size:.88rem;font-weight:700;color:#e2e8f0;flex:1">{q["team_name"]}</span>'
+                    f'<span style="font-size:.65rem;color:#22c55e;background:#22c55e22;padding:2px 8px;border-radius:10px">'
+                    f'{q["qualified_as"].split("—")[1].strip() if "—" in q["qualified_as"] else q["qualified_as"]}</span>'
+                    f'</div>'
+                    for q in items[:mid]
+                ) + "</div>",
+                unsafe_allow_html=True)
+with c2:
+    st.markdown(f'<div style="background:#0f0f24;border:1px solid #1e1e3e;border-radius:14px;overflow:hidden">'
+                + "".join(
+                    f'<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #0f0f22">'
+                    f'<span style="font-size:.72rem;font-weight:800;color:#334155;min-width:24px">{q["seed"]}</span>'
+                    f'<span>{flag(q["team_name"])}</span>'
+                    f'<span style="font-size:.88rem;font-weight:700;color:#e2e8f0;flex:1">{q["team_name"]}</span>'
+                    f'<span style="font-size:.65rem;color:#22c55e;background:#22c55e22;padding:2px 8px;border-radius:10px">'
+                    f'{q["qualified_as"].split("—")[1].strip() if "—" in q["qualified_as"] else q["qualified_as"]}</span>'
+                    f'</div>'
+                    for q in items[mid:]
+                ) + "</div>",
+                unsafe_allow_html=True)
 
 st.divider()
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  GROUP STAGE STANDINGS
-# ══════════════════════════════════════════════════════════════════════════════
-st.subheader("📋 Simulated Group Standings")
-st.caption("✅ Actual result  ·  🔮 Simulated result")
+# ── Simulated group standings ─────────────────────────────────────────────────
+st.markdown('<div class="section-label">Simulated Group Standings</div>', unsafe_allow_html=True)
+st.caption("✅ Actual results preserved · 🔮 Remaining matches simulated")
 
 group_results = result["group_results"]
 groups = sorted(k for k in group_results if k != "_match_log")
 
-# Show match log
-with st.expander("Match Log (all group stage results)"):
+with st.expander("Match Log"):
     logs = group_results.get("_match_log", [])
     if logs:
         log_df = pd.DataFrame(logs)
         log_df["Score"] = log_df.apply(lambda r: f"{r['hg']}–{r['ag']}", axis=1)
-        log_df["Type"] = log_df["simulated"].apply(lambda v: "🔮 Simulated" if v else "✅ Actual")
+        log_df["Type"]  = log_df["simulated"].apply(lambda v: "🔮 Sim" if v else "✅ Real")
         st.dataframe(
-            log_df[["group", "home", "Score", "away", "Type"]].rename(
-                columns={"group": "Group", "home": "Home", "away": "Away"}
-            ),
+            log_df[["group","home","Score","away","Type"]].rename(
+                columns={"group":"Grp","home":"Home","away":"Away"}),
             use_container_width=True, hide_index=True,
         )
 
-# Group tabs
-n_groups = len(groups)
 tab_cols = st.tabs([f"Group {g}" for g in groups])
-
 for tab, g in zip(tab_cols, groups):
     with tab:
-        rows = []
-        for pos, (tid, s) in enumerate(group_results[g].items()):
-            qualifier_badge = "🟢" if pos < 2 else ("🟡" if pos == 2 else "⚪")
-            rows.append({
-                "": qualifier_badge,
-                "Team": s["name"],
-                "P": s["P"], "W": s["W"], "D": s["D"], "L": s["L"],
-                "GF": s["GF"], "GA": s["GA"], "GD": s["GD"], "Pts": s["Pts"],
-            })
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-        st.caption("🟢 Qualifies  🟡 May qualify as best 3rd  ⚪ Eliminated")
+        rows = [
+            {"name": s["name"], "P": s["P"], "W": s["W"], "D": s["D"], "L": s["L"],
+             "GF": s["GF"], "GA": s["GA"], "GD": s["GD"], "Pts": s["Pts"]}
+            for tid, s in group_results[g].items()
+        ]
+        st.markdown(standings_table(rows), unsafe_allow_html=True)

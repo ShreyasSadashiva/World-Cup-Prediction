@@ -1,17 +1,14 @@
-"""
-WC Fixtures — all WC 2026 matches grouped by group/stage, with manual sync button.
-"""
-
 import pandas as pd
 import streamlit as st
 
 from src.db.client import get_client
+from src.ui.styles import apply_styles, match_card
 
 st.set_page_config(page_title="WC Fixtures · WC 2026", page_icon="🗓️", layout="wide")
-st.title("🗓️ WC 2026 Fixtures")
+apply_styles()
 
 
-@st.cache_data(ttl=120)
+@st.cache_data(ttl=60)
 def load_fixtures() -> pd.DataFrame:
     docs = get_client().collection("wc_fixtures").stream()
     rows = [{"id": d.id, **d.to_dict()} for d in docs]
@@ -22,14 +19,6 @@ def load_fixtures() -> pd.DataFrame:
     return df.sort_values("match_date")
 
 
-def _score(row) -> str:
-    if row.get("status") == "FINISHED":
-        return f"**{int(row.get('home_goals') or 0)} – {int(row.get('away_goals') or 0)}**"
-    if row.get("status") == "IN_PLAY":
-        return "🔴 LIVE"
-    return "vs"
-
-
 def _date(val) -> str:
     try:
         return pd.to_datetime(val, utc=True).strftime("%a %d %b · %H:%M UTC")
@@ -37,81 +26,117 @@ def _date(val) -> str:
         return str(val)[:16] if val else "TBD"
 
 
-# ── sidebar sync ──────────────────────────────────────────────────────────────
+# ── Sidebar sync ───────────────────────────────────────────────────────────
 with st.sidebar:
-    st.subheader("🔄 Data Sync")
+    st.markdown("### 🔄 Data Sync")
     if st.button("Update WC Results", type="primary", use_container_width=True):
-        with st.spinner("Fetching latest results from football-data.org…"):
+        with st.spinner("Fetching from football-data.org…"):
             try:
                 import sys
                 from pathlib import Path
                 sys.path.insert(0, str(Path(__file__).parent.parent))
                 from scripts.update_wc import run
                 f_upd, p_upd = run()
-                st.success(f"Updated {f_upd} fixtures · {p_upd} player records")
+                st.success(f"✅ {f_upd} fixtures · {p_upd} player records updated")
                 st.cache_data.clear()
                 st.rerun()
             except Exception as exc:
                 st.error(f"Update failed: {exc}")
     st.caption("Pulls latest finished match scores and player stats from the API.")
 
-fixtures_df = load_fixtures()
+# ── Header ─────────────────────────────────────────────────────────────────
+st.markdown("""
+<h1>🗓️ WC 2026 Fixtures</h1>
+<p class="page-sub">All 104 matches · Group stage &amp; Knockout · Click sidebar to sync latest results</p>
+""", unsafe_allow_html=True)
 
+fixtures_df = load_fixtures()
 if fixtures_df.empty:
-    st.error("No fixtures in DB — run `python -m scripts.seed_db` first.")
+    st.error("No fixtures — run `python -m scripts.seed_db` first.")
     st.stop()
 
-# ── status filter ─────────────────────────────────────────────────────────────
-status_filter = st.radio("Filter", ["All", "Scheduled", "Finished", "Live"], horizontal=True)
+# ── Status filter chips ─────────────────────────────────────────────────────
+status_filter = st.radio(
+    "Filter", ["All", "Scheduled", "Finished", "Live"],
+    horizontal=True, label_visibility="collapsed",
+)
 status_map = {"Scheduled": "SCHEDULED", "Finished": "FINISHED", "Live": "IN_PLAY"}
 if status_filter != "All":
     fixtures_df = fixtures_df[fixtures_df["status"] == status_map[status_filter]]
 
-group_matches = fixtures_df[fixtures_df["group_name"].notna()].copy() if "group_name" in fixtures_df.columns else pd.DataFrame()
-knockout_matches = fixtures_df[fixtures_df["group_name"].isna()].copy() if "group_name" in fixtures_df.columns else fixtures_df
+# ── Counts ──────────────────────────────────────────────────────────────────
+total = len(fixtures_df)
+done  = (fixtures_df["status"] == "FINISHED").sum()
+sched = (fixtures_df["status"] == "SCHEDULED").sum()
 
-groups = sorted(group_matches["group_name"].dropna().unique()) if not group_matches.empty else []
+c1, c2, c3 = st.columns(3)
+c1.metric("Total",    total)
+c2.metric("Finished", int(done))
+c3.metric("Scheduled",int(sched))
+
+st.divider()
+
+# ── Group stage tabs ────────────────────────────────────────────────────────
+group_df    = fixtures_df[fixtures_df["group_name"].notna()].copy() if "group_name" in fixtures_df.columns else pd.DataFrame()
+knockout_df = fixtures_df[fixtures_df["group_name"].isna()].copy()  if "group_name" in fixtures_df.columns else fixtures_df
+
+groups = sorted(group_df["group_name"].dropna().unique()) if not group_df.empty else []
 
 if groups:
-    extra_tabs = ["🏆 Knockout"] if not knockout_matches.empty else []
-    tabs = st.tabs([f"Group {g}" for g in groups] + extra_tabs)
+    extra = ["🏆 Knockout"] if not knockout_df.empty else []
+    tabs  = st.tabs([f"Group {g}" for g in groups] + extra)
 
-    for i, g in enumerate(groups):
-        with tabs[i]:
-            grp = group_matches[group_matches["group_name"] == g]
-            for _, row in grp.iterrows():
-                home = row.get("home_team_name", "TBD")
-                away = row.get("away_team_name", "TBD")
-                col1, col2, col3 = st.columns([3, 2, 3])
-                with col1:
-                    st.markdown(f"### {home}")
-                with col2:
-                    st.markdown(f"<div style='text-align:center;padding-top:8px'>{_score(row)}</div>",
-                                unsafe_allow_html=True)
-                with col3:
-                    st.markdown(f"### {away}")
-                st.caption(f"{_date(row.get('match_date'))} · {row.get('venue', '')}")
-                st.divider()
+    for tab, g in zip(tabs, groups):
+        with tab:
+            grp = group_df[group_df["group_name"] == g]
+            col_a, col_b = st.columns(2)
+            for i, (_, row) in enumerate(grp.iterrows()):
+                home   = row.get("home_team_name", "TBD")
+                away   = row.get("away_team_name", "TBD")
+                status = row.get("status", "SCHEDULED")
+                hg     = int(row.get("home_goals") or 0) if status == "FINISHED" else None
+                ag     = int(row.get("away_goals") or 0) if status == "FINISHED" else None
+                dt     = _date(row.get("match_date"))
+                venue  = row.get("venue") or ""
+                col = col_a if i % 2 == 0 else col_b
+                with col:
+                    st.markdown(
+                        match_card(home, away, hg, ag, date=dt, group=g, venue=venue, status=status),
+                        unsafe_allow_html=True,
+                    )
 
-    if not knockout_matches.empty and extra_tabs:
+    if not knockout_df.empty and extra:
         with tabs[-1]:
-            for stage in knockout_matches["stage"].dropna().unique():
-                st.subheader(stage.replace("_", " ").title())
-                for _, row in knockout_matches[knockout_matches["stage"] == stage].iterrows():
-                    home = row.get("home_team_name", "TBD")
-                    away = row.get("away_team_name", "TBD")
-                    col1, col2, col3 = st.columns([3, 2, 3])
-                    with col1:
-                        st.markdown(f"**{home}**")
-                    with col2:
-                        st.markdown(f"<div style='text-align:center'>{_score(row)}</div>",
-                                    unsafe_allow_html=True)
-                    with col3:
-                        st.markdown(f"**{away}**")
-                    st.caption(_date(row.get("match_date")))
-                    st.divider()
+            stages = knockout_df["stage"].dropna().unique() if "stage" in knockout_df.columns else []
+            for stage in stages:
+                stage_df = knockout_df[knockout_df["stage"] == stage]
+                st.markdown(
+                    f'<div class="section-label">{stage.replace("_"," ").title()}</div>',
+                    unsafe_allow_html=True,
+                )
+                col_a, col_b = st.columns(2)
+                for i, (_, row) in enumerate(stage_df.iterrows()):
+                    home   = row.get("home_team_name", "TBD")
+                    away   = row.get("away_team_name", "TBD")
+                    status = row.get("status", "SCHEDULED")
+                    hg     = int(row.get("home_goals") or 0) if status == "FINISHED" else None
+                    ag     = int(row.get("away_goals") or 0) if status == "FINISHED" else None
+                    dt     = _date(row.get("match_date"))
+                    col = col_a if i % 2 == 0 else col_b
+                    with col:
+                        st.markdown(
+                            match_card(home, away, hg, ag, date=dt, stage=stage, status=status),
+                            unsafe_allow_html=True,
+                        )
 else:
-    for _, row in fixtures_df.iterrows():
-        home = row.get("home_team_name", "TBD")
-        away = row.get("away_team_name", "TBD")
-        st.markdown(f"**{home}** {_score(row)} **{away}** · {_date(row.get('match_date'))}")
+    col_a, col_b = st.columns(2)
+    for i, (_, row) in enumerate(fixtures_df.iterrows()):
+        home   = row.get("home_team_name", "TBD")
+        away   = row.get("away_team_name", "TBD")
+        status = row.get("status", "SCHEDULED")
+        hg     = int(row.get("home_goals") or 0) if status == "FINISHED" else None
+        ag     = int(row.get("away_goals") or 0) if status == "FINISHED" else None
+        dt     = _date(row.get("match_date"))
+        col = col_a if i % 2 == 0 else col_b
+        with col:
+            st.markdown(match_card(home, away, hg, ag, date=dt, status=status), unsafe_allow_html=True)
