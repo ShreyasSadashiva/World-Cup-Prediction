@@ -18,7 +18,9 @@ from src.data.team_mappings import normalize
 from src.db.client import get_client, slugify
 
 
-def _team_slug(api_name: str) -> Optional[str]:
+def _team_slug(api_name: Optional[str]) -> Optional[str]:
+    if not api_name:
+        return None
     name = normalize(api_name)
     slug = slugify(name)
     doc = get_client().collection("teams").document(slug).get()

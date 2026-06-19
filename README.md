@@ -1,6 +1,6 @@
 # ⚽ FIFA World Cup 2026 Prediction App
 
-A Streamlit web application for match outcome predictions, team form analysis, head-to-head stats, and player data for the FIFA World Cup 2026.
+A Streamlit web application for match outcome predictions, team form analysis, head-to-head stats, player data, and tournament simulation for the FIFA World Cup 2026.
 
 ## Features
 
@@ -9,6 +9,7 @@ A Streamlit web application for match outcome predictions, team form analysis, h
 - **Team Form** — Last 15 pre-tournament international matches per team with form strip and goal charts
 - **WC Fixtures** — All 104 fixtures grouped by stage, with live scores and a one-click sync button
 - **Players** — WC top scorers leaderboard and squad viewer for every team
+- **Tournament Simulator** — Simulate the rest of the tournament in a single run or via Monte Carlo (up to 2,000 iterations) to get each team's championship probability
 
 ## Tech Stack
 
@@ -29,7 +30,8 @@ A Streamlit web application for match outcome predictions, team form analysis, h
 │   ├── 2_Head_to_Head.py
 │   ├── 3_Team_Form.py
 │   ├── 4_WC_Fixtures.py
-│   └── 5_Players.py
+│   ├── 5_Players.py
+│   └── 6_Tournament_Simulator.py
 ├── src/
 │   ├── db/
 │   │   ├── client.py           # Firebase Firestore singleton
@@ -124,3 +126,12 @@ The model is trained on all international matches from 2000 onward using a rolli
 - Context: neutral venue, current WC tournament form differential
 
 **Results:** 56.1% cross-validated accuracy (vs 33% random baseline for 3-class prediction).
+
+## Tournament Simulator
+
+The simulator advances the remaining WC 2026 bracket using the XGBoost model, respecting all match results already played. It offers two modes:
+
+- **Single Run** — One deterministic simulation through the bracket, choosing the most likely winner at each match.
+- **Monte Carlo** — Runs N simulations (100–2,000, default 500), sampling from the model's probability distribution at each match. Aggregates results into a championship probability and round-reach rate for every team. More simulations → smoother probabilities.
+
+Group-stage tiebreakers (points → goal difference → goals scored) and the full knockout bracket (Round of 32 → Final) are fully modeled. Pre-computed team features are cached before the simulation loop to keep performance fast even at 2,000 runs.
